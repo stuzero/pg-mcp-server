@@ -10,6 +10,7 @@ import urllib.parse
 import anthropic
 from mcp import ClientSession
 from mcp.client.sse import sse_client
+from tabulate import tabulate
 
 # This function is no longer needed as we're using the connect tool
 # Kept for reference but not used
@@ -160,7 +161,7 @@ Here is the database schema you will use:
         # Use response template prefilling to force Claude to produce JSON
         # This works by adding an assistant message that starts with the JSON structure
         response = client.messages.create(
-            model="claude-3-5-sonnet-20240620",
+            model="claude-3-7-sonnet-20250219",
             max_tokens=1024,
             system=system_prompt,
             messages=[
@@ -343,32 +344,62 @@ async def main():
                     
                     # Extract and format results
                     if hasattr(result, 'content') and result.content:
-                        content = result.content[0]
-                        if hasattr(content, 'text'):
-                            query_results = json.loads(content.text)
-                            print("\nQuery Results:")
-                            print("==============")
-                            if query_results:
-                                # Pretty print the results
-                                if isinstance(query_results, list) and len(query_results) > 0:
-                                    # Print column headers
-                                    headers = query_results[0].keys()
-                                    header_row = ' | '.join(str(h) for h in headers)
-                                    separator = '-' * len(header_row)
-                                    print(header_row)
-                                    print(separator)
-                                    
-                                    # Print data rows
-                                    for row in query_results:
-                                        print(' | '.join(str(row.get(h, '')) for h in headers))
-                                    
-                                    print(f"\nTotal rows: {len(query_results)}")
-                                else:
-                                    print(json.dumps(query_results, indent=2))
-                            else:
-                                print("Query executed successfully but returned no results.")
+                        print("\nQuery Results:")
+                        print("==============")
+                        
+                        # Handle the different possible structures for results
+                        if isinstance(result.content, list):
+                            # Extract multiple text items from content array
+                            query_results = []
+                            for item in result.content:
+                                if hasattr(item, 'text') and item.text:
+                                    try:
+                                        # Parse each text item as JSON
+                                        row = json.loads(item.text)
+                                        query_results.append(row)
+                                    except json.JSONDecodeError:
+                                        print(f"Warning: Could not parse result: {item.text}")
                         else:
-                            print("Query executed but returned an unexpected format.")
+                            # Legacy format handling
+                            content = result.content[0]
+                            if hasattr(content, 'text'):
+                                try:
+                                    query_results = json.loads(content.text)
+                                except json.JSONDecodeError:
+                                    print(f"Error: Could not parse content: {content.text}")
+                                    query_results = []
+                            else:
+                                query_results = []
+                        
+                        if query_results:
+                            # Pretty print the results
+                            if isinstance(query_results, list) and len(query_results) > 0:
+                                # Use tabulate to format the table
+                                table = tabulate(
+                                    query_results, 
+                                    headers="keys",
+                                    tablefmt="pretty",  # Options: "plain", "simple", "github", "grid", "fancy_grid", "pipe", "orgtbl", "jira", etc.
+                                    numalign="right",
+                                    stralign="left"
+                                )
+                                print(table)
+                                print(f"\nTotal rows: {len(query_results)}")
+                            elif isinstance(query_results, dict):
+                                # Handle single dictionary case
+                                table = tabulate(
+                                    [query_results],
+                                    headers="keys",
+                                    tablefmt="pretty",
+                                    numalign="right",
+                                    stralign="left"
+                                )
+                                print(table)
+                                print("\nTotal rows: 1")
+                            else:
+                                print(json.dumps(query_results, indent=2))
+                        else:
+                            print("Query executed successfully but returned no results.")
+
                     else:
                         print("Query executed but returned no content.")
                 except Exception as e:
