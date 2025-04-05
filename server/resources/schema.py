@@ -8,7 +8,194 @@ logger = get_logger("pg-mcp.resources.schemas")
 def register_schema_resources():
     """Register database schema resources with the MCP server."""
     logger.debug("Registering schema resources")
-    
+
+    @mcp.resource("pgmcp://{conn_id}/")
+    async def db_info(conn_id: str):
+        """
+        Get the complete database information including all schemas, tables, columns, and constraints.
+        Returns a comprehensive JSON structure with the entire database structure.
+        """
+        # Get all non-system schemas
+        schemas_query = """
+            SELECT 
+                schema_name,
+                obj_description(pg_namespace.oid) as description
+            FROM information_schema.schemata
+            JOIN pg_namespace ON pg_namespace.nspname = schema_name
+            WHERE 
+                schema_name NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
+                AND schema_name NOT LIKE 'pg_%'
+            ORDER BY schema_name
+        """
+        schemas = await execute_query(schemas_query, conn_id)
+        
+        result = {"schemas": []}
+        
+        # For each schema, get its tables
+        for schema in schemas:
+            schema_name = schema['schema_name']
+            schema_description = schema.get('description')
+            
+            schema_info = {
+                "name": schema_name,
+                "description": schema_description,
+                "tables": []
+            }
+            
+            # Get all tables in the schema
+            tables_query = """
+                SELECT 
+                    t.table_name,
+                    obj_description(format('"%s"."%s"', t.table_schema, t.table_name)::regclass::oid) as description,
+                    pg_stat_get_tuples_inserted(format('"%s"."%s"', t.table_schema, t.table_name)::regclass::oid) as row_count
+                FROM information_schema.tables t
+                WHERE 
+                    t.table_schema = $1
+                    AND t.table_type = 'BASE TABLE'
+                ORDER BY t.table_name
+            """
+            tables = await execute_query(tables_query, conn_id, [schema_name])
+            
+            # For each table, get its columns
+            for table in tables:
+                table_name = table['table_name']
+                table_description = table.get('description')
+                row_count = table.get('row_count')
+                
+                table_info = {
+                    "name": table_name,
+                    "description": table_description,
+                    "row_count": row_count,
+                    "columns": [],
+                    "foreign_keys": []
+                }
+                
+                # Get columns for this table
+                columns_query = """
+                    SELECT
+                        c.column_name,
+                        c.data_type,
+                        c.is_nullable,
+                        c.column_default,
+                        col_description(format('"%s"."%s"', c.table_schema, c.table_name)::regclass::oid, c.ordinal_position) as description
+                    FROM information_schema.columns c
+                    WHERE
+                        c.table_schema = $1 AND
+                        c.table_name = $2
+                    ORDER BY c.ordinal_position
+                """
+                columns = await execute_query(columns_query, conn_id, [schema_name, table_name])
+                
+                # Get constraints for this table to identify primary keys, etc.
+                constraints_query = """
+                    SELECT 
+                        c.conname as constraint_name,
+                        c.contype as constraint_type,
+                        CASE 
+                            WHEN c.contype = 'p' THEN 'PRIMARY KEY'
+                            WHEN c.contype = 'u' THEN 'UNIQUE'
+                            WHEN c.contype = 'f' THEN 'FOREIGN KEY'
+                            WHEN c.contype = 'c' THEN 'CHECK'
+                            ELSE 'OTHER'
+                        END as constraint_type_desc,
+                        ARRAY_AGG(col.attname ORDER BY u.attposition) as column_names
+                    FROM 
+                        pg_constraint c
+                    JOIN 
+                        pg_namespace n ON n.oid = c.connamespace
+                    JOIN 
+                        pg_class t ON t.oid = c.conrelid
+                    LEFT JOIN 
+                        LATERAL unnest(c.conkey) WITH ORDINALITY AS u(attnum, attposition) ON TRUE
+                    LEFT JOIN 
+                        pg_attribute col ON col.attrelid = t.oid AND col.attnum = u.attnum
+                    WHERE 
+                        n.nspname = $1
+                        AND t.relname = $2
+                    GROUP BY
+                        c.conname, c.contype
+                    ORDER BY 
+                        c.contype, c.conname
+                """
+                constraints = await execute_query(constraints_query, conn_id, [schema_name, table_name])
+                
+                # Process columns and add constraint information
+                for column in columns:
+                    column_name = column['column_name']
+                    column_constraints = []
+                    
+                    # Check which constraints apply to this column
+                    for constraint in constraints:
+                        if column_name in constraint.get('column_names', []):
+                            column_constraints.append(constraint['constraint_type_desc'])
+                    
+                    # Add column info
+                    column_info = {
+                        "name": column_name,
+                        "type": column['data_type'],
+                        "nullable": column['is_nullable'] == 'YES',
+                        "default": column['column_default'],
+                        "description": column['description'],
+                        "constraints": column_constraints
+                    }
+                    
+                    table_info["columns"].append(column_info)
+                
+                # Process foreign key constraints
+                foreign_keys_query = """
+                    SELECT 
+                        c.conname as constraint_name,
+                        ARRAY_AGG(col.attname ORDER BY u.attposition) as column_names,
+                        nr.nspname as referenced_schema,
+                        ref_table.relname as referenced_table,
+                        ARRAY_AGG(ref_col.attname ORDER BY u2.attposition) as referenced_columns
+                    FROM 
+                        pg_constraint c
+                    JOIN 
+                        pg_namespace n ON n.oid = c.connamespace
+                    JOIN 
+                        pg_class t ON t.oid = c.conrelid
+                    JOIN 
+                        pg_class ref_table ON ref_table.oid = c.confrelid
+                    JOIN 
+                        pg_namespace nr ON nr.oid = ref_table.relnamespace
+                    LEFT JOIN 
+                        LATERAL unnest(c.conkey) WITH ORDINALITY AS u(attnum, attposition) ON TRUE
+                    LEFT JOIN 
+                        pg_attribute col ON col.attrelid = t.oid AND col.attnum = u.attnum
+                    LEFT JOIN 
+                        LATERAL unnest(c.confkey) WITH ORDINALITY AS u2(attnum, attposition) ON TRUE
+                    LEFT JOIN 
+                        pg_attribute ref_col ON ref_col.attrelid = c.confrelid AND ref_col.attnum = u2.attnum
+                    WHERE 
+                        n.nspname = $1
+                        AND t.relname = $2
+                        AND c.contype = 'f'
+                    GROUP BY
+                        c.conname, nr.nspname, ref_table.relname
+                    ORDER BY 
+                        c.conname
+                """
+                foreign_keys = await execute_query(foreign_keys_query, conn_id, [schema_name, table_name])
+                
+                for fk in foreign_keys:
+                    fk_info = {
+                        "name": fk['constraint_name'],
+                        "columns": fk['column_names'],
+                        "referenced_schema": fk['referenced_schema'],
+                        "referenced_table": fk['referenced_table'],
+                        "referenced_columns": fk['referenced_columns']
+                    }
+                    table_info["foreign_keys"].append(fk_info)
+                
+                # Add table info to schema
+                schema_info["tables"].append(table_info)
+            
+            # Add schema info to result
+            result["schemas"].append(schema_info)
+        
+        return result
+
     @mcp.resource("pgmcp://{conn_id}/schemas")
     async def list_schemas(conn_id: str):
         """List all non-system schemas in the database."""
@@ -50,7 +237,7 @@ def register_schema_resources():
                 c.data_type,
                 c.is_nullable,
                 c.column_default,
-                col_description(format('%s.%s', c.table_schema, c.table_name)::regclass::oid, c.ordinal_position) as description
+                col_description(format('"%s"."%s"', c.table_schema, c.table_name)::regclass::oid, c.ordinal_position) as description
             FROM information_schema.columns c
             WHERE
                 c.table_schema = $1 AND

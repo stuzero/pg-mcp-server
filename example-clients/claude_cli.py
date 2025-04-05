@@ -3,145 +3,159 @@ import asyncio
 import dotenv
 import os
 import sys
-import codecs
 import json
-import uuid
 import urllib.parse
 import anthropic
 from mcp import ClientSession
 from mcp.client.sse import sse_client
 from tabulate import tabulate
 
-# This function is no longer needed as we're using the connect tool
-# Kept for reference but not used
-def postgres_connection_to_uuid(connection_string, namespace=uuid.NAMESPACE_URL):
-    """
-    Convert a PostgreSQL connection string into a deterministic Version 5 UUID.
-    Includes both connection credentials (netloc) and database name (path).
-    """
-    # Make sure connection_string has proper protocol prefix
-    if not connection_string.startswith("postgresql://"):
-        connection_string = f"postgresql://{connection_string}"
-        
-    # Parse the connection string
-    parsed = urllib.parse.urlparse(connection_string)
-    
-    # Extract the netloc (user:password@host:port) and path (database name)
-    connection_id_string = parsed.netloc + parsed.path
-    
-    # Create a Version 5 UUID (SHA-1 based)
-    result_uuid = uuid.uuid5(namespace, connection_id_string)
-    
-    return str(result_uuid)
-
-async def fetch_schema_info(session, conn_id):
-    """Fetch database schema information from the MCP server."""
-    schema_info = []
-    
-    # First get all schemas
+async def fetch_database_hierarchy(session, conn_id):
+    """Fetch complete database structure from the MCP server using the new resource."""
     try:
-        schemas_resource = f"pgmcp://{conn_id}/schemas"
-        schemas_response = await session.read_resource(schemas_resource)
+        # Get the complete database information 
+        db_resource = f"pgmcp://{conn_id}/"
+        db_response = await session.read_resource(db_resource)
         
-        schemas_content = None
-        if hasattr(schemas_response, 'content') and schemas_response.content:
-            schemas_content = schemas_response.content
-        elif hasattr(schemas_response, 'contents') and schemas_response.contents:
-            schemas_content = schemas_response.contents
+        content = None
+        if hasattr(db_response, 'content') and db_response.content:
+            content = db_response.content
+        elif hasattr(db_response, 'contents') and db_response.contents:
+            content = db_response.contents
             
-        if schemas_content:
-            content = schemas_content[0]
-            if hasattr(content, 'text'):
-                schemas = json.loads(content.text)
-                
-                # For each schema, get its tables
-                for schema in schemas:
-                    schema_name = schema.get('schema_name')
-                    schema_description = schema.get('description', '')
-                    
-                    # Fetch tables for this schema
-                    tables_resource = f"pgmcp://{conn_id}/schemas/{schema_name}/tables"
-                    tables_response = await session.read_resource(tables_resource)
-                    
-                    tables_content = None
-                    if hasattr(tables_response, 'content') and tables_response.content:
-                        tables_content = tables_response.content
-                    elif hasattr(tables_response, 'contents') and tables_response.contents:
-                        tables_content = tables_response.contents
-                        
-                    if tables_content:
-                        content = tables_content[0]
-                        if hasattr(content, 'text'):
-                            tables = json.loads(content.text)
-                            
-                            # For each table, get its columns
-                            for table in tables:
-                                table_name = table.get('table_name')
-                                table_description = table.get('description', '')
-                                
-                                # Fetch columns for this table
-                                columns_resource = f"pgmcp://{conn_id}/schemas/{schema_name}/tables/{table_name}/columns"
-                                columns_response = await session.read_resource(columns_resource)
-                                
-                                columns = []
-                                columns_content = None
-                                if hasattr(columns_response, 'content') and columns_response.content:
-                                    columns_content = columns_response.content
-                                elif hasattr(columns_response, 'contents') and columns_response.contents:
-                                    columns_content = columns_response.contents
-                                    
-                                if columns_content:
-                                    content = columns_content[0]
-                                    if hasattr(content, 'text'):
-                                        columns = json.loads(content.text)
-                                
-                                # Add table with its columns to schema info
-                                schema_info.append({
-                                    'schema': schema_name,
-                                    'table': table_name,
-                                    'description': table_description,
-                                    'columns': columns
-                                })
+        if content:
+            content_item = content[0]
+            if hasattr(content_item, 'text'):
+                return json.loads(content_item.text)
         
-        return schema_info
+        return None
     except Exception as e:
-        print(f"Error fetching schema information: {e}")
-        return []
+        print(f"Error fetching database hierarchy: {e}")
+        return None
 
-def format_schema_for_prompt(schema_info):
-    """Format schema information as a string for the prompt."""
-    if not schema_info:
-        return "No schema information available."
+def format_database_hierarchy(db_structure):
+    """Format the database structure in a hierarchical console output."""
+    if not db_structure or 'schemas' not in db_structure:
+        return "No database structure available."
     
-    schema_text = "DATABASE SCHEMA:\n\n"
+    output = "DATABASE HIERARCHY:\n\n"
     
-    for table_info in schema_info:
-        schema_name = table_info.get('schema')
-        table_name = table_info.get('table')
-        description = table_info.get('description', '')
+    for schema in db_structure['schemas']:
+        schema_name = schema['name']
+        schema_desc = schema.get('description', '')
         
-        schema_text += f"Table: {schema_name}.{table_name}"
-        if description:
-            schema_text += f" - {description}"
-        schema_text += "\n"
+        # Add schema header
+        output += f"SCHEMA: {schema_name}\n"
         
-        columns = table_info.get('columns', [])
-        if columns:
-            schema_text += "Columns:\n"
-            for col in columns:
-                col_name = col.get('column_name', '')
-                data_type = col.get('data_type', '')
-                is_nullable = col.get('is_nullable', '')
-                description = col.get('description', '')
+        # Add tables for this schema
+        for i, table in enumerate(schema['tables']):
+            table_name = table['name']
+            table_desc = table.get('description', '')
+            row_count = table.get('row_count', 0)
+            row_count_text = f" ({row_count} rows)" if row_count is not None else ""
+            
+            # Determine if this is the last table in the schema
+            is_last_table = i == len(schema['tables']) - 1
+            table_prefix = '└── ' if is_last_table else '├── '
+            
+            # Add table line
+            output += f"{table_prefix}TABLE: {table_name}{row_count_text}\n"
+            
+            # Add columns
+            for j, column in enumerate(table['columns']):
+                column_name = column['name']
+                column_type = column['type']
                 
-                schema_text += f"  - {col_name} ({data_type}, nullable: {is_nullable})"
-                if description:
-                    schema_text += f" - {description}"
-                schema_text += "\n"
+                # Gather constraints for this column
+                constraints = []
+                
+                if not column['nullable']:
+                    constraints.append('NOT NULL')
+                
+                if 'PRIMARY KEY' in column.get('constraints', []):
+                    constraints.append('PRIMARY KEY')
+                
+                if 'UNIQUE' in column.get('constraints', []):
+                    constraints.append('UNIQUE')
+                
+                # Check if this column is part of a foreign key
+                for fk in table.get('foreign_keys', []):
+                    if column_name in fk.get('columns', []):
+                        ref_schema = fk.get('referenced_schema', '')
+                        ref_table = fk.get('referenced_table', '')
+                        ref_cols = fk.get('referenced_columns', [])
+                        ref_col = ref_cols[fk.get('columns', []).index(column_name)] if ref_cols and column_name in fk.get('columns', []) else ''
+                        
+                        constraints.append(f"FK → {ref_schema}.{ref_table}({ref_col})")
+                
+                # Format constraints text
+                constraints_text = f", {', '.join(constraints)}" if constraints else ""
+                
+                # Determine if this is the last column in the table
+                is_last_column = j == len(table['columns']) - 1
+                
+                # Determine the appropriate prefix based on the nested level
+                if is_last_table:
+                    column_prefix = '    └── ' if is_last_column else '    ├── '
+                else:
+                    column_prefix = '│   └── ' if is_last_column else '│   ├── '
+                
+                # Add column line
+                output += f"{column_prefix}{column_name}: {column_type}{constraints_text}\n"
+            
+            # Add description if available
+            if table_desc:
+                description_prefix = '    ' if is_last_table else '│   '
+                output += f"{description_prefix}Description: {table_desc}\n"
+            
+            # Add vertical spacing between tables (except for the last table)
+            if not is_last_table:
+                output += "│\n"
         
-        schema_text += "\n"
+        # Add vertical spacing between schemas
+        if schema != db_structure['schemas'][-1]:
+            output += "\n"
     
-    return schema_text
+    return output
+
+def clean_sql_query(sql_query):
+    """
+    Clean a SQL query by properly handling escaped quotes and trailing backslashes.
+    
+    Args:
+        sql_query (str): The SQL query to clean
+        
+    Returns:
+        str: Cleaned SQL query
+    """
+    # Handle escaped quotes - need to do this character by character to avoid issues with trailing backslashes
+    result = ""
+    i = 0
+    
+    while i < len(sql_query):
+        if sql_query[i] == '\\' and i + 1 < len(sql_query):
+            # This is an escape sequence
+            if sql_query[i+1] == '"':
+                # Convert escaped quote to regular quote
+                result += '"'
+                i += 2  # Skip both the backslash and the quote
+            elif sql_query[i+1] == '\\':
+                # Handle escaped backslash
+                result += '\\'
+                i += 2  # Skip both backslashes
+            else:
+                # Some other escape sequence, keep it
+                result += sql_query[i:i+2]
+                i += 2
+        else:
+            # Regular character
+            result += sql_query[i]
+            i += 1
+    
+    # Remove any extraneous whitespace or newlines
+    result = result.strip()
+    
+    return result
 
 async def generate_sql_with_anthropic(user_query, schema_text, anthropic_api_key):
     """Generate SQL using Claude with response template prefilling."""
@@ -300,12 +314,21 @@ async def main():
                     print(f"Error registering connection: {e}")
                     sys.exit(1)
                 
-                # Fetch schema information
-                print("Fetching database schema information...")
-                schema_info = await fetch_schema_info(session, conn_id)
-                schema_text = format_schema_for_prompt(schema_info)
+                # Fetch database hierarchy
+                print("Fetching database hierarchy information...")
+                db_hierarchy = await fetch_database_hierarchy(session, conn_id)
                 
-                print(f"Retrieved information for {len(schema_info)} tables.")
+                # Display the database hierarchy
+                print("\nDatabase Structure:")
+                print("==================\n")
+                hierarchy_text = format_database_hierarchy(db_hierarchy)
+                print(hierarchy_text)
+                print("\n==================\n")
+                
+                # Use this hierarchy for Claude's prompt
+                schema_text = hierarchy_text
+                
+                print(f"Retrieved database structure information.")
                 
                 # Generate SQL using Claude with schema context
                 print("Generating SQL query with Claude...")
@@ -321,6 +344,7 @@ async def main():
                     print(f"------------")
                     print(explanation)
                 
+                # Original query (as generated by Claude)
                 print(f"\nGenerated SQL query:")
                 print(f"------------------")
                 print(sql_query)
@@ -330,8 +354,16 @@ async def main():
                     print("No SQL query was generated. Exiting.")
                     sys.exit(1)
                 
+                # Clean the SQL query before execution
+                sql_query = clean_sql_query(sql_query)
+                
+                # Show the cleaned query
+                print(f"Cleaned SQL query:")
+                print(f"------------------")
+                print(sql_query)
+                print(f"------------------\n")
+                
                 # Execute the generated SQL query
-                sql_query = codecs.decode(sql_query, 'unicode_escape')
                 print("Executing SQL query...")
                 try:
                     result = await session.call_tool(
