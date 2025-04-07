@@ -2,6 +2,9 @@
 
 A Model Context Protocol (MCP) server for PostgreSQL databases with enhanced capabilities for AI agents.
 
+More info on the pg-mcp project here:
+### [https://stuzero.github.io/pg-mcp/](https://stuzero.github.io/pg-mcp/)
+
 ## Overview
 
 PG-MCP is a server implementation of the [Model Context Protocol](https://modelcontextprotocol.io) for PostgreSQL databases. It provides a comprehensive API for AI agents to discover, connect to, query, and understand PostgreSQL databases through MCP's resource-oriented architecture.
@@ -75,12 +78,11 @@ docker-compose up -d
 git clone https://github.com/stuzero/pg-mcp.git
 cd pg-mcp
 
-# Create and activate a virtual environment
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+# Install dependencies and create a virtual environment ( .venv )
+uv sync
 
-# Install using uv
-uv sync --frozen
+# Activate the virtual environment
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Run the server
 python -m server.app
@@ -97,7 +99,7 @@ The repository includes test scripts to verify server functionality:
 python test.py "postgresql://username:password@hostname:port/database"
 
 # Claude-powered natural language to SQL conversion
-python client/claude_cli.py "Show me the top 5 customers by total sales"
+python example-clients/claude_cli.py "Show me the top 5 customers by total sales"
 ```
 
 The `claude_cli.py` script requires environment variables:
@@ -127,6 +129,9 @@ You can explore schema resources via:
 pgmcp://{conn_id}/schemas
 pgmcp://{conn_id}/schemas/{schema}/tables
 pgmcp://{conn_id}/schemas/{schema}/tables/{table}/columns
+
+A comprehensive database description is available at this resource:
+pgmcp://{conn_id}/
 ```
 
 ## Architecture
