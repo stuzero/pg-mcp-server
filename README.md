@@ -64,7 +64,7 @@ Additional extensions can be easily added via YAML config files.
 
 ```bash
 # Clone the repository
-git clone https://github.com/stuzero/pg-mcp.git
+git clone https://github.com/stuzero/pg-mcp-server.git
 cd pg-mcp
 
 # Build and run with Docker Compose
@@ -75,8 +75,8 @@ docker-compose up -d
 
 ```bash
 # Clone the repository
-git clone https://github.com/stuzero/pg-mcp.git
-cd pg-mcp
+git clone https://github.com/stuzero/pg-mcp-server.git
+cd pg-mcp-server
 
 # Install dependencies and create a virtual environment ( .venv )
 uv sync
