@@ -65,7 +65,7 @@ Additional extensions can be easily added via YAML config files.
 ```bash
 # Clone the repository
 git clone https://github.com/stuzero/pg-mcp-server.git
-cd pg-mcp
+cd pg-mcp-server
 
 # Build and run with Docker Compose
 docker-compose up -d
