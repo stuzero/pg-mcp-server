@@ -22,7 +22,8 @@ def register_connection_tools():
             Dictionary containing the connection ID
         """
         # Get database from context
-        db = ctx.request_context.lifespan_context["db"]
+        # db = ctx.request_context.lifespan_context.get("db")
+        db = mcp.state["db"]
         
         # Register the connection to get a connection ID
         conn_id = db.register_connection(connection_string)
@@ -44,7 +45,8 @@ def register_connection_tools():
             Dictionary indicating success status
         """
         # Get database from context
-        db = ctx.request_context.lifespan_context["db"]
+        # db = ctx.request_context.lifespan_context.get("db")
+        db = mcp.state["db"]
         
         # Check if the connection exists
         if conn_id not in db._connection_map:

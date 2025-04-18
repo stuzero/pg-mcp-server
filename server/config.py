@@ -7,25 +7,24 @@ from mcp.server.fastmcp.utilities.logging import get_logger
 
 logger = get_logger("pg-mcp.instance")
 
-# Define lifespan context manager for initialization and cleanup
+global_db = Database()
+logger.info("Global database manager initialized")
+
 @asynccontextmanager
-async def app_lifespan(server: FastMCP) -> AsyncIterator[dict]:
+async def app_lifespan(app: FastMCP) -> AsyncIterator[dict]:
     """Manage application lifecycle."""
-    # Startup logic
-    db = Database()
-    logger.info("Database manager initialized (no connections established yet)")
-    mcp.state = {"db": db}
+    mcp.state = {"db": global_db}
+    logger.info("Application startup - using global database manager")
     
     try:
-        yield {"db": db}
+        yield {"db": global_db}
     finally:
-        # Shutdown logic
-        logger.info("Shutting down all database connections")
-        await db.close()  # Close all connections
+        # Don't close connections on individual session end
+        pass
 
-# Create and expose the MCP instance
+# Create the MCP instance
 mcp = FastMCP(
-    "pg-mcp", 
+    "pg-mcp-server", 
     debug=True, 
     lifespan=app_lifespan,
     dependencies=["asyncpg", "mcp"]
