@@ -1,19 +1,13 @@
 # server/app.py
-from mcp.server.fastmcp.utilities.logging import configure_logging, get_logger
-import logging
-import sys
+import os
+from server.logging_config import configure_logging, get_logger, configure_uvicorn_logging
 
-# Configure logging
-configure_logging(level="DEBUG")
-logger = get_logger("pg-mcp")
+# Configure logging first thing to capture all subsequent log messages
+log_level = os.environ.get("LOG_LEVEL", "DEBUG")
+configure_logging(level=log_level)
+logger = get_logger("app")
 
-root_logger = logging.getLogger()
-root_logger.setLevel(logging.DEBUG)
-handler = logging.StreamHandler(sys.stderr)
-handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-root_logger.addHandler(handler)
-
-# Import mcp instance
+# Import MCP instance and other components after logging is configured
 from server.config import mcp, global_db
 
 # Import registration functions
@@ -25,12 +19,13 @@ from server.tools.query import register_query_tools
 from server.prompts.nl_to_sql import register_nl_prompts
 
 # Register tools and resources with the MCP server
+logger.info("Registering resources and tools")
 register_schema_resources()   # Schema-related resources (schemas, tables, columns)
 register_extension_resources()
 register_data_resources()     # Data-related resources (sample, rowcount, etc.)
-register_connection_tools()  # Connection management tools
+register_connection_tools()   # Connection management tools
 register_query_tools()
-register_nl_prompts()  # Register prompt
+register_nl_prompts()         # Register prompt
 
 from contextlib import asynccontextmanager
 from starlette.applications import Starlette
@@ -46,5 +41,19 @@ async def starlette_lifespan(app):
 
 if __name__ == "__main__":
     logger.info("Starting MCP server with SSE transport")
-    app = Starlette(routes=[Mount('/', app=mcp.sse_app())])
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    app = Starlette(
+        routes=[Mount('/', app=mcp.sse_app())],
+        lifespan=starlette_lifespan
+    )
+    
+    # Configure Uvicorn with our logging setup
+    uvicorn_log_config = configure_uvicorn_logging(log_level)
+    
+    # Use our configured log level for Uvicorn
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=8000, 
+        log_level=log_level.lower(),
+        log_config=uvicorn_log_config
+    )

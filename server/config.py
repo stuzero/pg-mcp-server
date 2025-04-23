@@ -3,9 +3,10 @@ from mcp.server.fastmcp import FastMCP
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from server.database import Database
-from mcp.server.fastmcp.utilities.logging import get_logger
+from server.logging_config import configure_logging, get_logger
 
-logger = get_logger("pg-mcp.instance")
+# Initialize logging with our custom configuration
+logger = get_logger("instance")
 
 global_db = Database()
 logger.info("Global database manager initialized")
