@@ -16,7 +16,9 @@ from server.resources.data import register_data_resources
 from server.resources.extensions import register_extension_resources
 from server.tools.connection import register_connection_tools
 from server.tools.query import register_query_tools
-from server.prompts.nl_to_sql import register_nl_prompts
+# from server.prompts.nl_to_sql import register_nl_prompts
+from server.prompts.natural_language import register_natural_language_prompts
+
 
 # Register tools and resources with the MCP server
 logger.info("Registering resources and tools")
@@ -25,7 +27,9 @@ register_extension_resources()
 register_data_resources()     # Data-related resources (sample, rowcount, etc.)
 register_connection_tools()   # Connection management tools
 register_query_tools()
-register_nl_prompts()         # Register prompt
+# register_nl_prompts()
+register_natural_language_prompts()  # Natural language to SQL prompts
+
 
 from contextlib import asynccontextmanager
 from starlette.applications import Starlette

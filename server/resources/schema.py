@@ -1,20 +1,14 @@
 # server/resources/schema.py
-import os
-import pathlib
+import importlib.resources
 from server.config import mcp
 from mcp.server.fastmcp.utilities.logging import get_logger
 from server.tools.query import execute_query
 
 logger = get_logger("pg-mcp.resources.schemas")
 
-# Define the SQL directory path
-SQL_DIR = pathlib.Path(__file__).parent / "sql"
-
 def load_sql_file(filename):
-    """Load SQL from a file in the sql directory."""
-    file_path = SQL_DIR / filename
-    with open(file_path, 'r') as f:
-        return f.read()
+    """Load SQL from a file using importlib.resources."""
+    return importlib.resources.read_text('server.resources.sql', filename)
 
 def register_schema_resources():
     """Register database schema resources with the MCP server."""
