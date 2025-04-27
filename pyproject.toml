@@ -10,5 +10,6 @@ dependencies = [
     "jinja2>=3.1.6",
     "mcp[cli]>=1.5.0",
     "pydantic-ai>=0.0.46",
+    "sqlglot>=26.16.2",
     "tabulate>=0.9.0",
 ]

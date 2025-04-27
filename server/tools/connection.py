@@ -1,7 +1,7 @@
 # server/tools/connection.py
 from server.config import mcp
 from mcp.server.fastmcp import Context
-from mcp.server.fastmcp.utilities.logging import get_logger
+from server.logging_config import get_logger
 
 logger = get_logger("pg-mcp.tools.connection")
 

@@ -16,8 +16,9 @@ from server.resources.data import register_data_resources
 from server.resources.extensions import register_extension_resources
 from server.tools.connection import register_connection_tools
 from server.tools.query import register_query_tools
+from server.tools.viz import register_viz_tools
 from server.prompts.natural_language import register_natural_language_prompts
-
+from server.prompts.data_visualization import register_data_visualization_prompts
 
 # Register tools and resources with the MCP server
 logger.info("Registering resources and tools")
@@ -26,7 +27,9 @@ register_extension_resources()
 register_data_resources()     # Data-related resources (sample, rowcount, etc.)
 register_connection_tools()   # Connection management tools
 register_query_tools()
+register_viz_tools()         # Visualization tools
 register_natural_language_prompts()  # Natural language to SQL prompts
+register_data_visualization_prompts() # Data visualization prompts
 
 
 from contextlib import asynccontextmanager

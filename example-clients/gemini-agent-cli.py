@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# client/gemini-agent-cli.py
+# example-clients/gemini-agent-cli.py
 import asyncio
 import argparse
 import os
@@ -14,6 +14,7 @@ from pydantic_ai import Agent
 from pydantic_ai.models.gemini import GeminiModel
 from pydantic_ai.providers.google_gla import GoogleGLAProvider
 from httpx import AsyncClient
+
 # Load environment variables
 dotenv.load_dotenv()
 
@@ -28,12 +29,11 @@ class AgentCLI:
         self.db_url = db_url
         self.api_key = api_key
         self.conn_id = None
-        self.schema_info = None
         
         custom_http_client = AsyncClient(timeout=30)
         model = GeminiModel(
             'gemini-2.0-flash',
-            provider=GoogleGLAProvider(api_key=DEFAULT_API_KEY, http_client=custom_http_client),
+            provider=GoogleGLAProvider(api_key=api_key, http_client=custom_http_client),
         )
         self.agent = Agent(model)
     
@@ -89,36 +89,6 @@ class AgentCLI:
                             print("Exiting.")
                             return
     
-    async def get_schema(self):
-        """Fetch the database schema information as JSON."""
-        if not self.conn_id:
-            print("Error: Not connected to database")
-            return None
-        
-        try:
-            print("Fetching database schema...")
-            schema_resource = f"pgmcp://{self.conn_id}/"
-            schema_response = await self.session.read_resource(schema_resource)
-            
-            # Extract content
-            content = None
-            if hasattr(schema_response, 'contents') and schema_response.contents:
-                content = schema_response.contents[0]
-            elif hasattr(schema_response, 'content') and schema_response.content:
-                content = schema_response.content[0]
-            
-            if content and hasattr(content, 'text'):
-                schema_data = json.loads(content.text)
-                schema_count = len(schema_data.get('schemas', []))
-                print(f"Retrieved schema information: {schema_count} schemas")
-                return json.dumps(schema_data, indent=2)
-            else:
-                print("Error: Could not extract schema data from response")
-                return None
-        except Exception as e:
-            print(f"Error fetching schema information: {e}")
-            return None
-    
     async def process_user_query(self):
         """Process a natural language query from the user."""
         if not self.conn_id:
@@ -132,19 +102,13 @@ class AgentCLI:
         if user_query.lower() in ['exit', 'quit']:
             raise KeyboardInterrupt()
         
-        # Fetch fresh schema data for each query
-        schema_json = await self.get_schema()
-        if not schema_json:
-            print("Error: Failed to get schema data")
-            return
-        
         print("Generating SQL query...")
         
         try:
             # Get the prompt from server
-            prompt_response = await self.session.get_prompt('nl_to_sql_prompt', {
-                'query': user_query,
-                'schema_json': schema_json
+            prompt_response = await self.session.get_prompt('generate_sql', {
+                'conn_id': self.conn_id,
+                'nl_query': user_query
             })
             
             # Extract messages from prompt response
@@ -152,7 +116,6 @@ class AgentCLI:
                 print("Error: Invalid prompt response from server")
                 return
             
-            # Pass messages directly to the model
             # Convert MCP messages to format expected by Gemini
             messages = []
             for msg in prompt_response.messages:
@@ -203,8 +166,10 @@ class AgentCLI:
             if not sql_query.endswith(';'):
                 sql_query = sql_query + ';'
             
-            # Display and confirm
+            # Handle escaped characters
             unescaped_sql_query = codecs.decode(sql_query, 'unicode_escape')
+            
+            # Display and confirm
             print("\nGenerated SQL query:")
             print(unescaped_sql_query)
             
@@ -232,7 +197,10 @@ class AgentCLI:
                         try:
                             # Parse each row from JSON
                             row_data = json.loads(content_item.text)
-                            query_results.append(row_data)
+                            if isinstance(row_data, list):
+                                query_results.extend(row_data)
+                            else:
+                                query_results.append(row_data)
                         except json.JSONDecodeError:
                             print(f"Error parsing result item: {content_item.text[:100]}")
                 

@@ -1,0 +1,78 @@
+You are an expert in data visualization who will create an appropriate Vega-Lite specification based on SQL query results and database context.
+
+## Database Schema Information
+```json
+{{database_info}}
+```
+
+## Natural Language Query
+"{{nl_query}}"
+
+## SQL Query
+```sql
+{{sql_query}}
+```
+
+## Query Metadata
+```json
+{{query_metadata}}
+```
+
+## Your Task
+
+Generate a Vega-Lite specification that creates an appropriate visualization for the data returned by this SQL query. The visualization should:
+
+1. Effectively communicate the insights sought in the natural language query
+2. Use appropriate chart types based on the field data types (temporal, quantitative, nominal)
+3. Include proper axis labels, chart title, and other annotations
+4. Use a pleasing and accessible color scheme
+5. Be optimized for the data size indicated in the metadata
+6. Leverage appropriate Vega-Lite features for the data structure
+
+## Guidelines for Chart Type Selection
+
+- **Time Series Data**: Use line charts for temporal data trends
+- **Categorical Comparisons**: Use bar charts for comparing values across categories
+- **Distributions**: Use histograms or density plots for distributions
+- **Part-to-Whole Relationships**: Use pie or donut charts (only for small number of categories)
+- **Correlations**: Use scatter plots for relationships between numeric variables
+- **Geographic Data**: Use map visualizations for spatial data
+- **Multi-dimensional Data**: Consider faceted views or small multiples
+
+## Special Considerations
+
+- For large datasets (>1000 rows), use aggregation or sampling
+- When there are many fields, prioritize those most relevant to the query
+- For GROUP BY queries, ensure the visualization reflects the grouped structure
+- For queries with multiple measures, consider compound visualizations
+- When date ranges are large, use appropriate temporal units (days, months, years)
+- Ensure the visualization is colorblind-friendly
+
+## Response Format
+
+Your response must be a valid JSON object containing:
+
+1. A complete, ready-to-use Vega-Lite specification
+2. A brief explanation of why you chose this visualization type
+3. Any limitations or assumptions made
+
+Example response format:
+```json
+{
+  "vegaLiteSpec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "data": {"name": "results"},
+    "mark": "bar",
+    "encoding": {
+      "x": {"field": "category", "type": "nominal", "title": "Product Category"},
+      "y": {"field": "total_sales", "type": "quantitative", "title": "Total Sales ($)"},
+      "color": {"field": "category", "type": "nominal", "legend": null}
+    },
+    "title": "Sales by Product Category"
+  },
+  "explanation": "I chose a bar chart because the query compares sales totals across categorical product groups. The bar chart clearly shows the relative differences between categories.",
+  "limitations": "This visualization works best with a small number of categories. If there are many categories, consider using a horizontal bar chart with categories sorted by value."
+}
+```
+
+Remember to match your visualization to the user's intent as expressed in the natural language query. The visualization should directly answer the question being asked.

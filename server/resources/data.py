@@ -1,6 +1,6 @@
 # server/resources/data.py
 from server.config import mcp
-from mcp.server.fastmcp.utilities.logging import get_logger
+from server.logging_config import get_logger
 from server.tools.query import execute_query
 
 logger = get_logger("pg-mcp.resources.data")
