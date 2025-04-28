@@ -29,6 +29,28 @@ Generate a Vega-Lite specification that creates an appropriate visualization for
 5. Be optimized for the data size indicated in the metadata
 6. Leverage appropriate Vega-Lite features for the data structure
 
+## Response Format
+
+**IMPORTANT**: Your response must be a valid JSON object inside a code block, in the following format:
+
+```json
+{
+  "vegaLiteSpec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": {"name": "results"},
+    "mark": "CHART_TYPE",
+    "encoding": {
+      // Your encoding properties here
+    },
+    "title": "CHART_TITLE"
+  },
+  "explanation": "Brief explanation of why you chose this visualization type",
+  "limitations": "Any limitations or assumptions made"
+}
+```
+
+Do NOT include any explanatory text, comments, or markdown outside of this JSON code block. The JSON must be properly formatted with double quotes around all property names and string values. Do not use single quotes or unquoted property names.
+
 ## Guidelines for Chart Type Selection
 
 - **Time Series Data**: Use line charts for temporal data trends
@@ -48,19 +70,13 @@ Generate a Vega-Lite specification that creates an appropriate visualization for
 - When date ranges are large, use appropriate temporal units (days, months, years)
 - Ensure the visualization is colorblind-friendly
 
-## Response Format
+## Examples
 
-Your response must be a valid JSON object containing:
-
-1. A complete, ready-to-use Vega-Lite specification
-2. A brief explanation of why you chose this visualization type
-3. Any limitations or assumptions made
-
-Example response format:
+A basic bar chart visualizing sales by category:
 ```json
 {
   "vegaLiteSpec": {
-    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
     "data": {"name": "results"},
     "mark": "bar",
     "encoding": {
@@ -72,6 +88,24 @@ Example response format:
   },
   "explanation": "I chose a bar chart because the query compares sales totals across categorical product groups. The bar chart clearly shows the relative differences between categories.",
   "limitations": "This visualization works best with a small number of categories. If there are many categories, consider using a horizontal bar chart with categories sorted by value."
+}
+```
+
+A time series visualization:
+```json
+{
+  "vegaLiteSpec": {
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "data": {"name": "results"},
+    "mark": "line",
+    "encoding": {
+      "x": {"field": "date", "type": "temporal", "title": "Month"},
+      "y": {"field": "revenue", "type": "quantitative", "title": "Monthly Revenue ($)"}
+    },
+    "title": "Monthly Revenue Trend"
+  },
+  "explanation": "I chose a line chart because the query shows revenue values over time, and line charts are ideal for showing trends in temporal data.",
+  "limitations": "This visualization assumes the time intervals are regular. Irregular intervals might be better visualized with points connected by lines."
 }
 ```
 
