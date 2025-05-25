@@ -42,7 +42,7 @@ def register_data_visualization_prompts():
         database_resource = f"pgmcp://{conn_id}/"
         database_response = await mcp.read_resource(database_resource)
         
-        database_info = database_response
+        database_info = database_response[0].content if database_response else "{}"
         
         # Render the prompt template
         prompt_template = template_env.get_template("generate_vega.md.jinja2")

@@ -31,7 +31,7 @@ def register_natural_language_prompts():
         database_resource = f"pgmcp://{conn_id}/"
         database_response = await mcp.read_resource(database_resource)
         
-        database_info = database_response
+        database_info = database_response[0].content if database_response else "{}"
         
         # Render the prompt template
         prompt_template = template_env.get_template("generate_sql.md.jinja2")
@@ -57,7 +57,7 @@ def register_natural_language_prompts():
         database_resource = f"pgmcp://{conn_id}/"
         database_response = await mcp.read_resource(database_resource)
         
-        database_info = database_response
+        database_info = database_response[0].content if database_response else "{}"
         
         # Render the prompt template
         prompt_template = template_env.get_template("validate_nl.md.jinja2")
@@ -83,7 +83,7 @@ def register_natural_language_prompts():
         database_resource = f"pgmcp://{conn_id}/"
         database_response = await mcp.read_resource(database_resource)
         
-        database_info = database_response
+        database_info = database_response[0].content if database_response else "{}"
         
         # Render the prompt template
         prompt_template = template_env.get_template("justify_sql.md.jinja2")
