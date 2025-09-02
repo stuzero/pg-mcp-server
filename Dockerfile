@@ -20,9 +20,7 @@ ADD . /app
 COPY .profile /root/.profile
 
 # Sync the project into a new environment, using the frozen lockfile
-RUN uv sync --frozen
-
-ENTRYPOINT ["uv", "run", "-m", "server.app"]
+RUN cd /app && rm -r .venv && uv sync --frozen
 
 # Run the application
 CMD ["uv", "run", "-m", "server.app"]

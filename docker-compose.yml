@@ -1,17 +1,19 @@
 services:
   pg-mcp:
+    # image: docker.io/library/pg-mcp-server-pg-mcp
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: pg-mcp
+    # container_name: pg-mcp
     ports:
       - "8000:8000"
     environment:
       - LOG_LEVEL=DEBUG
       - PYTHONUNBUFFERED=1
-    volumes:
+    # volumes:
       # For development: mount app directory to enable hot-reloading
-      - ./server:/app/server
+      # This has known problems with /app/.venv
+      # - ./server:/app/server
     restart: unless-stopped
     networks:
       - pg-mcp-network
