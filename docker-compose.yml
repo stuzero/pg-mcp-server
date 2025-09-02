@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   pg-mcp:
     build:
@@ -17,7 +15,18 @@ services:
     restart: unless-stopped
     networks:
       - pg-mcp-network
+  pg-mcp-db:
+    image: pgvector/pgvector:pg17
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: pgmcp
+      POSTGRES_USER: pgmcp
+      POSTGRES_DB: pgmcp
+    ports:
+      - 5432:5432
+    networks:
+      - pg-mcp-network
 
 networks:
   pg-mcp-network:
-    driver: bridge
+    # driver: bridge
