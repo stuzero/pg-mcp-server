@@ -1,23 +1,34 @@
-version: '3.8'
-
 services:
   pg-mcp:
+    # image: docker.io/library/pg-mcp-server-pg-mcp
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: pg-mcp
+    # container_name: pg-mcp
     ports:
       - "8000:8000"
     environment:
       - LOG_LEVEL=DEBUG
       - PYTHONUNBUFFERED=1
-    volumes:
+    # volumes:
       # For development: mount app directory to enable hot-reloading
-      - ./server:/app/server
+      # This has known problems with /app/.venv
+      # - ./server:/app/server
     restart: unless-stopped
+    networks:
+      - pg-mcp-network
+  pg-mcp-db:
+    image: pgvector/pgvector:pg17
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: pgmcp
+      POSTGRES_USER: pgmcp
+      POSTGRES_DB: pgmcp
+    ports:
+      - 5432:5432
     networks:
       - pg-mcp-network
 
 networks:
   pg-mcp-network:
-    driver: bridge
+    # driver: bridge

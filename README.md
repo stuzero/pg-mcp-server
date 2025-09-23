@@ -59,8 +59,24 @@ Additional extensions can be easily added via YAML config files.
 
 - Python 3.13+
 - PostgreSQL database(s)
+- `cp .env.example .env` and fill in the required environment variables
+  (for docker/podman compose, see below)
 
 ### Using Docker
+
+Prepare:
+
+```bash
+cp .env.example .env
+# Edit .env to set your DATABASE_URL and API keys
+cat .env
+PG_MCP_URL=http://localhost:8000/sse
+DATABASE_URL=postgresql://pgmcp:pgmcp@pg-mcp-db:5432/pgmcp
+# ANTHROPIC_API_KEY=your-anthropic-api-key
+# GEMINI_API_KEY=your-gemini-api-key
+```
+
+Run:
 
 ```bash
 # Clone the repository
