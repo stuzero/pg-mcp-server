@@ -19,6 +19,7 @@ from server.tools.query import register_query_tools
 from server.tools.viz import register_viz_tools
 from server.prompts.natural_language import register_natural_language_prompts
 from server.prompts.data_visualization import register_data_visualization_prompts
+from server.system.health import register_health
 
 # Register tools and resources with the MCP server
 logger.info("Registering resources and tools")
@@ -30,6 +31,7 @@ register_query_tools()
 register_viz_tools()         # Visualization tools
 register_natural_language_prompts()  # Natural language to SQL prompts
 register_data_visualization_prompts() # Data visualization prompts
+register_health() # /health for Docker and Kubernetes
 
 
 from contextlib import asynccontextmanager
