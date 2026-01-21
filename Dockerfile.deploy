@@ -1,0 +1,57 @@
+# Dockerfile referenced: https://github.com/astral-sh/uv-docker-example/blob/main/multistage.Dockerfile
+
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
+
+# Enable bytecode compilation
+ENV UV_COMPILE_BYTECODE=1
+
+# Copy from the cache instead of linking since it's a mounted volume
+ENV UV_LINK_MODE=copy
+
+# Omit development dependencies
+ENV UV_NO_DEV=1
+
+# Disable Python downloads, because we want to use the system interpreter
+# across both images. If using a managed Python version, it needs to be
+# copied from the build image into the final image
+ENV UV_PYTHON_DOWNLOADS=0
+
+WORKDIR /app
+
+# Install the project's dependencies using the lockfile and settings
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --locked --no-install-project
+
+# Copy the project into the image
+# and install it
+COPY . /app
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked
+
+FROM python:3.13-slim-bookworm
+
+# Setup a non-root user
+RUN groupadd --system --gid 999 nonroot \
+ && useradd --system --gid 999 --uid 999 --create-home nonroot
+
+COPY --from=builder --chown=nonroot:nonroot /app /app
+
+# Place executables in the environment at the front of the path
+ENV PATH="/app/.venv/bin:$PATH"
+
+# To workaround thin log lines in Docker (see https://github.com/Textualize/rich/issues/1747)
+ENV COLUMNS=200
+
+# To reduce log intensity
+ENV LOG_LEVEL=info
+
+# Use the non-root user to run our application
+USER nonroot
+
+# Use `/app` as the working directory
+WORKDIR /app
+
+# Run the application by default
+CMD ["python", "-m", "server.app"]
